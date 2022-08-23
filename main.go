@@ -68,14 +68,59 @@ func main() {
 		var events models.Events
 		var filter bson.D
 
-		if c.Query("title", "") != "" {
-			filter = bson.D{{Key: "title", Value: c.Query("title", "")}}
-		} else if c.Query("date", "") != "" {
-			filter = bson.D{{Key: "date", Value: c.Query("date", "")}}
+		if c.Query("title", "") != "" || c.Query("date", "") != "" || c.Query("state", "") != "" {
 
-		} else if c.Query("state", "") != "" {
-			boolValue, _ := strconv.ParseBool(c.Query("state", ""))
-			filter = bson.D{{Key: "state", Value: boolValue}}
+			if c.Query("title", "") != "" {
+				filter = bson.D{{Key: "title", Value: c.Query("title", "")}}
+
+				if c.Query("date", "") != "" {
+					fmt.Println(filter.Map())
+					filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}}
+
+					if c.Query("state", "") != "" {
+						boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+						filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}, {Key: "state", Value: boolValue}}
+					}
+				} else if c.Query("state", "") != "" {
+					boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+					filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "state", Value: boolValue}}
+				}
+			}
+
+			if c.Query("date", "") != "" {
+				filter = bson.D{{Key: "date", Value: c.Query("date", "")}}
+
+				if c.Query("title", "") != "" {
+					fmt.Println(filter.Map())
+					filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}}
+
+					if c.Query("state", "") != "" {
+						boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+						filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}, {Key: "state", Value: boolValue}}
+					}
+				} else if c.Query("state", "") != "" {
+					boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+					filter = bson.D{{Key: "date", Value: c.Query("date", "")}, {Key: "state", Value: boolValue}}
+				}
+			}
+
+			if c.Query("state", "") != "" {
+				filter = bson.D{{Key: "state", Value: c.Query("state", "")}}
+
+				if c.Query("title", "") != "" {
+					fmt.Println(filter.Map())
+					filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "state", Value: c.Query("state", "")}}
+
+					if c.Query("date", "") != "" {
+						boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+						filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}, {Key: "state", Value: boolValue}}
+					}
+				} else if c.Query("date", "") != "" {
+					boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+					filter = bson.D{{Key: "date", Value: c.Query("date", "")}, {Key: "state", Value: boolValue}}
+				}
+			}
+
 		} else {
 			filter = bson.D{}
 		}
