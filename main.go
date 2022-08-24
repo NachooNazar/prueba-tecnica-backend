@@ -139,7 +139,6 @@ func main() {
 		// fmt.Println(eventts)
 		return c.Status(fiber.StatusOK).JSON(events)
 	})
-
 	app.Post("/event", func(c *fiber.Ctx) error {
 		var event models.Event
 
@@ -148,7 +147,7 @@ func main() {
 		}
 
 		event.Id = uuid.NewString()
-		event.State = true
+		//event.State = true
 		res, err2 := collEvent.InsertOne(context.TODO(), event)
 
 		if err2 != nil {
@@ -156,7 +155,6 @@ func main() {
 		}
 		return c.Status(fiber.StatusOK).JSON(res)
 	})
-
 	app.Put("/event", func(c *fiber.Ctx) error {
 		type incription struct {
 			EventId string `json:"eventID"`
@@ -220,7 +218,29 @@ func main() {
 
 		return c.Status(fiber.StatusAccepted).JSON("Inscripto exitosamente")
 	})
+	app.Get("/myEvents", func(c *fiber.Ctx) error {
+		var events models.Events
 
+		userId := c.Query("userId")
+
+		fmt.Println(userId)
+		var user models.User
+		collUser.FindOne(context.TODO(), bson.M{"id": userId}).Decode(&user)
+		fmt.Println(user)
+
+		for i := 0; i < len(user.MyEvents); i++ {
+			filter := bson.M{"id": user.MyEvents[i]}
+			var event models.Event
+			res := collEvent.FindOne(context.TODO(), filter)
+			res.Decode(&event)
+			fmt.Println(event.Title)
+			fmt.Println(res)
+			events = append(events, event)
+		}
+
+		fmt.Println("lleguee")
+		return c.Status(fiber.StatusOK).JSON(events)
+	})
 	app.Get("/user", func(c *fiber.Ctx) error {
 
 		name := c.Query("name", "")
