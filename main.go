@@ -251,24 +251,86 @@ func main() {
 
 		return c.Status(fiber.StatusOK).JSON(events)
 	})
+	app.Put("/event/:id", func(c *fiber.Ctx) error {
+		eventID := c.Params("id")
+		var eventBody models.Event
+		c.BodyParser(&eventBody)
+
+		var eventRes models.Event
+		collEvent.FindOne(context.TODO(), bson.D{{Key: "id", Value: eventID}}).Decode(&eventRes)
+		eventBody.Id = eventID
+		eventBody.Inscriptos = eventRes.Inscriptos
+
+		if eventBody.Date == "" {
+			eventBody.Date = eventRes.Date
+		}
+		if eventBody.Organizer == "" {
+			eventBody.Organizer = eventRes.Organizer
+		}
+		if eventBody.Hour == "" {
+			eventBody.Hour = eventRes.Hour
+		}
+		if eventBody.Place == "" {
+			eventBody.Place = eventRes.Place
+		}
+		if eventBody.Title == "" {
+			eventBody.Title = eventRes.Title
+		}
+		if eventBody.ShortDescription == "" {
+			eventBody.ShortDescription = eventRes.ShortDescription
+		}
+		if eventBody.LargeDescription == "" {
+			eventBody.LargeDescription = eventRes.LargeDescription
+		}
+		if !eventBody.State {
+			eventBody.State = eventRes.State
+		}
+
+		res, err := collEvent.UpdateOne(context.TODO(), bson.M{"id": eventID}, bson.D{{Key: "$set", Value: eventBody}})
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(err)
+		}
+		//collEvent.FindOne(context.TODO(), bson.D{{Key: "id", Value: eventID}}).Decode(&eventRes)
+		return c.Status(fiber.StatusOK).JSON(res)
+	})
 	app.Get("/user", func(c *fiber.Ctx) error {
 
 		name := c.Query("name", "")
+		var filter bson.M
 
-		var user models.User
-		collUser.FindOne(context.TODO(), bson.M{"name": name}).Decode(&user)
+		if name == "" {
+			var users models.Users
+			filter = bson.M{}
+			res, err := collUser.Find(context.TODO(), filter)
+			if err != nil {
+				return c.Status(fiber.StatusNotFound).JSON(users)
+			}
 
-		return c.Status(fiber.StatusAccepted).JSON(user)
+			if err := res.All(context.TODO(), &users); err != nil {
+				return c.Status(fiber.StatusBadRequest).JSON(err)
+			}
+
+			return c.Status(fiber.StatusAccepted).JSON(users)
+		} else {
+			var user models.User
+			filter = bson.M{"name": name}
+			collUser.FindOne(context.TODO(), filter).Decode(&user)
+			return c.Status(fiber.StatusAccepted).JSON(user)
+		}
 	})
 	app.Post("/user", func(c *fiber.Ctx) error {
-
 		var user models.User
 
 		c.BodyParser(&user)
+		validUser := validateUser(user)
+		if !validUser {
+			return c.Status(fiber.StatusBadRequest).JSON("Invalid user")
+		}
 		user.Id = uuid.NewString()
 		collUser.InsertOne(context.TODO(), user)
 		return c.Status(fiber.StatusAccepted).JSON(user)
 	})
+
 	app.Listen(":3000")
 }
 
@@ -280,4 +342,11 @@ func calcDateRecent(currentDate time.Time, eventDate time.Time) bool {
 	} else {
 		return true
 	}
+}
+
+func validateUser(user models.User) bool {
+	if user.Name != "" && user.Email != "" && user.Lastname != "" && user.Password != "" {
+		return true
+	}
+	return false
 }
