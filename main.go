@@ -47,7 +47,7 @@ func main() {
 	}
 	defer DisconnectDb(client)
 
-	//user := client.Database("gomongo").Collection("users")
+	collUser := client.Database("gomongo").Collection("users")
 	collEvent := client.Database("gomongo").Collection("events")
 
 	collEvent.InsertOne(context.TODO(), bson.D{{
@@ -55,6 +55,10 @@ func main() {
 		Value: "Nashe",
 	}})
 
+	collUser.InsertOne(context.TODO(), bson.D{{
+		Key:   "name",
+		Value: "Nacho",
+	}})
 	//Middlewares
 	app.Use(logger.New())
 	app.Use(cors.New())
@@ -136,6 +140,12 @@ func main() {
 			res.Decode(&event)
 			events = append(events, event)
 		}
+
+		// var eventts [][]string
+		// for i := range events {
+		// 	eventts = append(eventts, events[i].Inscriptos)
+		// }
+		// fmt.Println(eventts)
 		return c.Status(fiber.StatusOK).JSON(events)
 	})
 
@@ -143,7 +153,7 @@ func main() {
 		var event models.Event
 
 		if err = c.BodyParser(&event); err != nil {
-			return err
+			return c.Status(fiber.StatusBadRequest).JSON(err)
 		}
 
 		event.Id = uuid.NewString()
@@ -151,10 +161,70 @@ func main() {
 		res, err2 := collEvent.InsertOne(context.TODO(), event)
 
 		if err2 != nil {
-			return err2
+			return c.Status(fiber.StatusBadRequest).JSON(err2)
 		}
 		return c.Status(fiber.StatusOK).JSON(res)
 	})
 
+	app.Put("/event", func(c *fiber.Ctx) error {
+		type incription struct {
+			EventId string `json:"eventID"`
+			UserId  string `json:"userID"`
+		}
+
+		var incripcion incription
+
+		if err := c.BodyParser(&incripcion); err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(err)
+		}
+
+		if incripcion.EventId == "" || incripcion.UserId == "" {
+			return c.Status(fiber.StatusBadRequest).JSON("Bad request")
+		}
+
+		var user models.User
+		collUser.FindOne(context.TODO(), bson.M{"id": incripcion.UserId}).Decode(&user)
+		if len(user.Name) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON("Invalid user")
+		}
+
+		var event models.Event
+		collEvent.FindOne(context.TODO(), bson.M{"id": incripcion.EventId}).Decode(&event)
+		if len(event.Title) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON("Invalid event")
+		}
+
+		inscriptos := append(event.Inscriptos, incripcion.UserId)
+		fmt.Println(inscriptos)
+
+		filter := bson.M{"id": incripcion.EventId}
+		update := bson.D{{Key: "$set", Value: bson.D{{Key: "inscriptos", Value: inscriptos}}}}
+		//var eventModified models.Event
+		res, err := collEvent.UpdateOne(context.TODO(), filter, update)
+
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(res)
+		return c.Status(fiber.StatusAccepted).JSON("Inscripto exitosamente")
+	})
+
+	app.Get("/user", func(c *fiber.Ctx) error {
+
+		name := c.Query("name", "")
+
+		var user models.User
+		collUser.FindOne(context.TODO(), bson.M{"name": name}).Decode(&user)
+
+		return c.Status(fiber.StatusAccepted).JSON(user)
+	})
+	app.Post("/user", func(c *fiber.Ctx) error {
+
+		var user models.User
+
+		c.BodyParser(&user)
+		collUser.InsertOne(context.TODO(), user)
+		return c.Status(fiber.StatusAccepted).JSON(user)
+	})
 	app.Listen(":3000")
 }
