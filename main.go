@@ -218,10 +218,11 @@ func main() {
 
 		return c.Status(fiber.StatusAccepted).JSON("Inscripto exitosamente")
 	})
-	app.Get("/myEvents", func(c *fiber.Ctx) error {
+	app.Get("/event/own", func(c *fiber.Ctx) error {
 		var events models.Events
 
 		userId := c.Query("userId")
+		query := c.Query("time", "")
 
 		fmt.Println(userId)
 		var user models.User
@@ -229,13 +230,15 @@ func main() {
 		fmt.Println(user)
 
 		for i := 0; i < len(user.MyEvents); i++ {
-			filter := bson.M{"id": user.MyEvents[i]}
+			filter := bson.M{"date": bson.M{"$gte": query}, "id": user.MyEvents[i]}
 			var event models.Event
 			res := collEvent.FindOne(context.TODO(), filter)
 			res.Decode(&event)
-			fmt.Println(event.Title)
+			fmt.Println()
 			fmt.Println(res)
-			events = append(events, event)
+			if len(event.Title) > 0 {
+				events = append(events, event)
+			}
 		}
 
 		fmt.Println("lleguee")
@@ -255,6 +258,7 @@ func main() {
 		var user models.User
 
 		c.BodyParser(&user)
+		user.Id = uuid.NewString()
 		collUser.InsertOne(context.TODO(), user)
 		return c.Status(fiber.StatusAccepted).JSON(user)
 	})
