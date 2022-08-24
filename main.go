@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/NachooNazar/prueba-tecnica-backend/models"
 	"github.com/gofiber/fiber/v2"
@@ -27,9 +28,11 @@ func getURL() string {
 	//En Go existe el package os, que nos permite obtener variables de entorno por el metodo Getenv([nombre_de_la_variable])
 	return fmt.Sprintf("mongodb://%s:%d/%s", host, port, database)
 }
-func ConnectDb() (*mongo.Client, error) {
+func ConnectDb() (*mongo.Client, *mongo.Collection, *mongo.Collection, error) {
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(getURL()))
-	return client, err
+	collUser := client.Database("gomongo").Collection("users")
+	collEvent := client.Database("gomongo").Collection("events")
+	return client, collUser, collEvent, err
 }
 func DisconnectDb(client *mongo.Client) {
 	if err := client.Disconnect(context.TODO()); err != nil {
@@ -41,24 +44,12 @@ func main() {
 	app := fiber.New()
 
 	//Conexion a la base de datos
-	client, err := ConnectDb()
+	client, collUser, collEvent, err := ConnectDb()
 	if err != nil {
 		panic(err)
 	}
 	defer DisconnectDb(client)
 
-	collUser := client.Database("gomongo").Collection("users")
-	collEvent := client.Database("gomongo").Collection("events")
-
-	collEvent.InsertOne(context.TODO(), bson.D{{
-		Key:   "title",
-		Value: "Nashe",
-	}})
-
-	collUser.InsertOne(context.TODO(), bson.D{{
-		Key:   "name",
-		Value: "Nacho",
-	}})
 	//Middlewares
 	app.Use(logger.New())
 	app.Use(cors.New())
@@ -194,18 +185,39 @@ func main() {
 			return c.Status(fiber.StatusBadRequest).JSON("Invalid event")
 		}
 
-		inscriptos := append(event.Inscriptos, incripcion.UserId)
-		fmt.Println(inscriptos)
-
-		filter := bson.M{"id": incripcion.EventId}
-		update := bson.D{{Key: "$set", Value: bson.D{{Key: "inscriptos", Value: inscriptos}}}}
-		//var eventModified models.Event
-		res, err := collEvent.UpdateOne(context.TODO(), filter, update)
-
-		if err != nil {
-			panic(err)
+		if !event.State {
+			return c.Status(fiber.StatusBadRequest).JSON("Event closed")
 		}
-		fmt.Println(res)
+
+		//Puedo acceder a diferentes atributos -> year, month, day, hour, minute, second
+		actualDate := time.Now()
+		var eventDate time.Time
+		eventDate, err3 := time.Parse("02/01/2006", event.Date)
+		if err3 != nil {
+			return c.Status(fiber.StatusBadRequest).JSON("invalid date")
+		}
+
+		canGo := calcDateRecent(actualDate, eventDate)
+		if !canGo {
+			return c.Status(fiber.StatusBadRequest).JSON("You cant go back into the time")
+		}
+		//Agrega evento al user
+		myEvents := append(user.MyEvents, incripcion.EventId)
+		filter := bson.M{"id": incripcion.UserId}
+		update := bson.D{{Key: "$set", Value: bson.D{{Key: "myEvents", Value: myEvents}}}}
+		_, err5 := collUser.UpdateOne(context.TODO(), filter, update)
+		if err5 != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(err5)
+		}
+		//Agrega user al evento
+		inscriptos := append(event.Inscriptos, incripcion.UserId)
+		filter = bson.M{"id": incripcion.EventId}
+		update = bson.D{{Key: "$set", Value: bson.D{{Key: "inscriptos", Value: inscriptos}}}}
+		_, err6 := collEvent.UpdateOne(context.TODO(), filter, update)
+		if err6 != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(err6)
+		}
+
 		return c.Status(fiber.StatusAccepted).JSON("Inscripto exitosamente")
 	})
 
@@ -227,4 +239,14 @@ func main() {
 		return c.Status(fiber.StatusAccepted).JSON(user)
 	})
 	app.Listen(":3000")
+}
+
+func calcDateRecent(currentDate time.Time, eventDate time.Time) bool {
+	minutesCurrentDate := int(currentDate.Year())*525600 + int(currentDate.Month())*43800 + int(currentDate.Day())*1440
+	minutesEventDate := int(eventDate.Year())*525600 + int(eventDate.Month())*43800 + int(eventDate.Day())*1440
+	if minutesCurrentDate > minutesEventDate {
+		return false
+	} else {
+		return true
+	}
 }
