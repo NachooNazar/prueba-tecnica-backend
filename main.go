@@ -69,7 +69,7 @@ func main() {
 				filter = bson.D{{Key: "title", Value: c.Query("title", "")}}
 
 				if c.Query("date", "") != "" {
-					fmt.Println(filter.Map())
+
 					filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}}
 
 					if c.Query("state", "") != "" {
@@ -86,7 +86,7 @@ func main() {
 				filter = bson.D{{Key: "date", Value: c.Query("date", "")}}
 
 				if c.Query("title", "") != "" {
-					fmt.Println(filter.Map())
+
 					filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}}
 
 					if c.Query("state", "") != "" {
@@ -100,10 +100,11 @@ func main() {
 			}
 
 			if c.Query("state", "") != "" {
-				filter = bson.D{{Key: "state", Value: c.Query("state", "")}}
+				boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+				filter = bson.D{{Key: "state", Value: boolValue}}
 
 				if c.Query("title", "") != "" {
-					fmt.Println(filter.Map())
+
 					filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "state", Value: c.Query("state", "")}}
 
 					if c.Query("date", "") != "" {
@@ -111,7 +112,7 @@ func main() {
 						filter = bson.D{{Key: "title", Value: c.Query("title", "")}, {Key: "date", Value: c.Query("date", "")}, {Key: "state", Value: boolValue}}
 					}
 				} else if c.Query("date", "") != "" {
-					boolValue, _ := strconv.ParseBool(c.Query("state", ""))
+
 					filter = bson.D{{Key: "date", Value: c.Query("date", "")}, {Key: "state", Value: boolValue}}
 				}
 			}
@@ -125,7 +126,7 @@ func main() {
 		if err != nil {
 			c.Status(fiber.StatusBadRequest).JSON(err)
 		}
-		fmt.Println(err)
+
 		for res.Next(context.TODO()) {
 			var event models.Event
 			res.Decode(&event)
@@ -146,7 +147,17 @@ func main() {
 			return c.Status(fiber.StatusBadRequest).JSON(err)
 		}
 
+		actualDate := time.Now()
+		var eventDate time.Time
+		eventDate, err3 := time.Parse("02/01/2006", event.Date)
+		if err3 != nil {
+			return c.Status(fiber.StatusBadRequest).JSON("invalid date")
+		}
 		event.Id = uuid.NewString()
+		canGo := calcDateRecent(actualDate, eventDate)
+		if !canGo {
+			return c.Status(fiber.StatusBadRequest).JSON("You cant go back into the time")
+		}
 		//event.State = true
 		res, err2 := collEvent.InsertOne(context.TODO(), event)
 
@@ -227,21 +238,17 @@ func main() {
 		fmt.Println(userId)
 		var user models.User
 		collUser.FindOne(context.TODO(), bson.M{"id": userId}).Decode(&user)
-		fmt.Println(user)
 
 		for i := 0; i < len(user.MyEvents); i++ {
 			filter := bson.M{"date": bson.M{"$gte": query}, "id": user.MyEvents[i]}
 			var event models.Event
 			res := collEvent.FindOne(context.TODO(), filter)
 			res.Decode(&event)
-			fmt.Println()
-			fmt.Println(res)
 			if len(event.Title) > 0 {
 				events = append(events, event)
 			}
 		}
 
-		fmt.Println("lleguee")
 		return c.Status(fiber.StatusOK).JSON(events)
 	})
 	app.Get("/user", func(c *fiber.Ctx) error {
