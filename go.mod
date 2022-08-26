@@ -4,8 +4,6 @@ go 1.19
 
 require (
 	github.com/gofiber/fiber/v2 v2.36.0
-	github.com/gofiber/jwt/v3 v3.2.14
-	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/google/uuid v1.3.0
 	go.mongodb.org/mongo-driver v1.10.1
 )
