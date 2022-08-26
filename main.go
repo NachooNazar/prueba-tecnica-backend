@@ -18,6 +18,9 @@ import (
 
 // URI bd
 var (
+	// Obviously, this is just a test example. Do not do this in production.
+	// In production, you would have the private key and public key pair generated
+	// in advance. NEVER add a private key to any GitHub repo.
 	host     = "localhost"
 	port     = 27017
 	database = "gomongo"
@@ -40,6 +43,21 @@ func DisconnectDb(client *mongo.Client) {
 	}
 }
 
+// func createJWTToken(user models.User) (string, int64, error) {
+
+// 	exp := time.Now().Add(time.Minute * 30).Unix()
+// 	token := jwt.New(jwt.SigningMethodHS256)
+// 	claims := token.Claims.(jwt.MapClaims)
+// 	claims["user_id"] = user.Id
+// 	claims["exp"] = exp
+// 	t, err := token.SignedString([]byte("secret"))
+// 	if err != nil {
+// 		return "", 0, err
+// 	}
+// 	return t, exp, nil
+
+// }
+
 func main() {
 	app := fiber.New()
 
@@ -54,8 +72,53 @@ func main() {
 	app.Use(logger.New())
 	app.Use(cors.New())
 
-	app.Get("/", func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusOK).JSON("Hello world")
+	app.Post("/login", func(c *fiber.Ctx) error {
+
+		type request struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+
+		var body request
+		err := c.BodyParser(&body)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "cannot parse json",
+			})
+
+		}
+		var user models.User
+		collUser.FindOne(context.TODO(), bson.M{"email": body.Email}).Decode(&user)
+		fmt.Println(user)
+		if user.Email != body.Email || user.Password != body.Password {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Bad credentials",
+			})
+
+		}
+
+		// token, exp, err2 := createJWTToken(user)
+		// if err2 != nil {
+		// 	fmt.Println(err2)
+		// 	fmt.Println(exp)
+		// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+		// 		"error": "could not login",
+		// 		"err":   err2,
+		// 	})
+		// }
+		// cookie := fiber.Cookie{
+		// 	Name:     "jwt",
+		// 	Value:    token,
+		// 	Expires:  exp,
+		// 	HTTPOnly: true,
+		// }
+
+		///c.Cookie(&cookie)
+
+		// c.Set("Authorization", token)
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"Success": "could login",
+		})
 	})
 
 	//Este listado de eventos se debe poder filtrar por fecha, estado, y título.
@@ -124,7 +187,7 @@ func main() {
 		res, err := collEvent.Find(context.TODO(), filter)
 
 		if err != nil {
-			c.Status(fiber.StatusBadRequest).JSON(err)
+			return c.Status(fiber.StatusBadRequest).JSON(err)
 		}
 
 		for res.Next(context.TODO()) {
@@ -293,6 +356,9 @@ func main() {
 		//collEvent.FindOne(context.TODO(), bson.D{{Key: "id", Value: eventID}}).Decode(&eventRes)
 		return c.Status(fiber.StatusOK).JSON(res)
 	})
+
+	//RUTAS ADMIN
+
 	app.Get("/user", func(c *fiber.Ctx) error {
 
 		name := c.Query("name", "")
