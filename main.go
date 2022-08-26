@@ -16,11 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// URI bd
 var (
-	// Obviously, this is just a test example. Do not do this in production.
-	// In production, you would have the private key and public key pair generated
-	// in advance. NEVER add a private key to any GitHub repo.
 	host     = "localhost"
 	port     = 27017
 	database = "gomongo"
@@ -71,7 +67,18 @@ func main() {
 	//Middlewares
 	app.Use(logger.New())
 	app.Use(cors.New())
+	app.Post("/register", func(c *fiber.Ctx) error {
+		var user models.User
 
+		c.BodyParser(&user)
+		validUser := validateUser(user)
+		if !validUser {
+			return c.Status(fiber.StatusBadRequest).JSON("Invalid user")
+		}
+		user.Id = uuid.NewString()
+		collUser.InsertOne(context.TODO(), user)
+		return c.Status(fiber.StatusAccepted).JSON(user)
+	})
 	app.Post("/login", func(c *fiber.Ctx) error {
 
 		type request struct {
@@ -120,7 +127,6 @@ func main() {
 			"Success": "could login",
 		})
 	})
-
 	//Este listado de eventos se debe poder filtrar por fecha, estado, y título.
 	app.Get("/event", func(c *fiber.Ctx) error {
 		var events models.Events
@@ -229,7 +235,7 @@ func main() {
 		}
 		return c.Status(fiber.StatusOK).JSON(res)
 	})
-	app.Put("/event", func(c *fiber.Ctx) error {
+	app.Put("/inscribe/event", func(c *fiber.Ctx) error {
 		type incription struct {
 			EventId string `json:"eventID"`
 			UserId  string `json:"userID"`
@@ -356,9 +362,6 @@ func main() {
 		//collEvent.FindOne(context.TODO(), bson.D{{Key: "id", Value: eventID}}).Decode(&eventRes)
 		return c.Status(fiber.StatusOK).JSON(res)
 	})
-
-	//RUTAS ADMIN
-
 	app.Get("/user", func(c *fiber.Ctx) error {
 
 		name := c.Query("name", "")
@@ -381,20 +384,13 @@ func main() {
 			var user models.User
 			filter = bson.M{"name": name}
 			collUser.FindOne(context.TODO(), filter).Decode(&user)
+			if len(user.Name) == 0 && len(user.Id) < 5 {
+				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+					"error": "User not found",
+				})
+			}
 			return c.Status(fiber.StatusAccepted).JSON(user)
 		}
-	})
-	app.Post("/user", func(c *fiber.Ctx) error {
-		var user models.User
-
-		c.BodyParser(&user)
-		validUser := validateUser(user)
-		if !validUser {
-			return c.Status(fiber.StatusBadRequest).JSON("Invalid user")
-		}
-		user.Id = uuid.NewString()
-		collUser.InsertOne(context.TODO(), user)
-		return c.Status(fiber.StatusAccepted).JSON(user)
 	})
 
 	app.Listen(":3000")
